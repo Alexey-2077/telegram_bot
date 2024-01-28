@@ -1,26 +1,32 @@
 const TelegramBot = require('node-telegram-bot-api');
 const Filter = require('bad-words');
-let filter = new Filter();
 const token = 'здесь должен быть твой токен';
 const bot = new TelegramBot(token, { polling: true });
 
-bot.on('message', (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
+const BAN_DURATION = 60; // секунд
 
-  // Слова, за которые будет раздача банов
-  const bannedWords = ['крипта', 'лс', 'заработок'];
-
-  // Проверка наличие запрещенных слов в сообщении
-  if (filter.isProfane(msg.text) || bannedWords.some(word => msg.text.toLowerCase().includes(word))) {
-    const banReason = 'Вы устроили цирк, по этой причине вы покинули чат';
-
-    // Отправляем информацию о причине бана в личные сообщения
-    bot.sendMessage(userId, banReason);
-
-    // Баним пользователя на 60 секунд
-    bot.banChatMember(chatId, userId, { until_date: Date.now() / 1000 + 60 });
-
+async function banUser(chatId, userId) {
+  try {
+    const banReason = filter.clean(msg.text);
+    await bot.sendMessage(userId, banReason);
+    await bot.banChatMember(chatId, userId, { until_date: Date.now() / 1000 + BAN_DURATION });
     console.log('клоун забанен');
+  } catch (error) {
+    console.error('Ошибка бана:', error);
+  }
+}
+
+bot.on('message', async (msg) => {
+  const { chat: { id: chatId }, from: { id: userId } } = msg;
+
+  if (isBanned(msg.text)) {
+    await banUser(chatId, userId);
   }
 });
+
+function isBanned(text) {
+  return filter.isProfane(text);
+}
+
+const filter = new Filter();
+
